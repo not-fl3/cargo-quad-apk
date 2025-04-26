@@ -252,10 +252,6 @@ pub struct JavaFiles {
     /// Extra .jar files to use in "dex" invocation
     /// "Runtime-time" Java dependency
     pub runtime_jar_files: Vec<(PathBuf, PathBuf)>,
-
-    /// List of services being appended to "metadata.android.service" with
-    /// "enabled: true" value
-    pub java_services: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -264,7 +260,6 @@ struct QuadToml {
     java_files: Option<Vec<String>>,
     comptime_jar_files: Option<Vec<String>>,
     runtime_jar_files: Option<Vec<String>>,
-    java_services: Option<Vec<String>>,
     // a special field being filled while toml parsing
     // do not really belong to a toml and this struct!
     #[serde(skip)]
@@ -331,7 +326,6 @@ pub fn collect_java_files(workspace: &Workspace, config: &AndroidConfig) -> Java
         java_files: vec![],
         comptime_jar_files: vec![],
         runtime_jar_files: vec![],
-        java_services: vec![],
     };
 
     let absolute_path = |root: &PathBuf, path: &str| {
@@ -361,9 +355,6 @@ pub fn collect_java_files(workspace: &Workspace, config: &AndroidConfig) -> Java
                 .extend(to_absolute(&toml.comptime_jar_files));
             res.runtime_jar_files
                 .extend(to_absolute(&toml.runtime_jar_files));
-            if let Some(ref java_services) = toml.java_services {
-                res.java_services.extend(java_services.iter().cloned());
-            }
         });
     res
 }
