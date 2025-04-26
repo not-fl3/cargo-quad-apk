@@ -144,6 +144,13 @@ impl AndroidConfig {
                 .into_iter()
                 .map(AndroidPermission::from)
                 .collect(),
+            services: primary_config
+                .and_then(|a| a.service.clone())
+                .or_else(|| self.default_target_config.service.clone())
+                .unwrap_or_else(Vec::new)
+                .into_iter()
+                .map(AndroidService::from)
+                .collect(),
         })
     }
 }
@@ -189,6 +196,23 @@ impl From<TomlPermission> for AndroidPermission {
         AndroidPermission {
             name: p.name,
             max_sdk_version: p.max_sdk_version,
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct AndroidService {
+    pub name: String,
+    pub foreground_service_type: Option<String>,
+    pub exported: bool,
+}
+
+impl From<TomlService> for AndroidService {
+    fn from(p: TomlService) -> Self {
+        AndroidService {
+            name: p.name,
+            foreground_service_type: p.foreground_service_type,
+            exported: p.exported,
         }
     }
 }
@@ -244,6 +268,9 @@ pub struct AndroidTargetConfig {
 
     /// uses-permission in AndroidManifest.xml
     pub permissions: Vec<AndroidPermission>,
+
+    /// service in AndroidManifest.xml
+    pub services: Vec<AndroidService>,
 }
 
 pub fn load(
@@ -343,7 +370,7 @@ pub fn load(
     let android_version = manifest_content
         .as_ref()
         .and_then(|a| a.android_version)
-        .unwrap_or(31);
+        .unwrap_or(36);
 
     // Check that the tool for the android platform is installed
     let android_jar_path = Path::new(&sdk_path)
@@ -481,7 +508,8 @@ struct TomlPermission {
 #[serde(deny_unknown_fields)]
 struct TomlService {
     name: String,
-    enabled: bool,
+    foreground_service_type: Option<String>,
+    exported: bool,
 }
 
 /// Configuration specific to a single cargo target

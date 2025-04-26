@@ -1,7 +1,7 @@
 FROM archlinux
 
 RUN pacman -Syu --noconfirm
-RUN pacman -S --noconfirm jdk8-openjdk unzip wget cmake rustup openssl pkgconf
+RUN pacman -S --noconfirm jdk17-openjdk unzip wget cmake rustup openssl pkgconf
 
 # github override HOME, so here we are
 ENV RUSTUP_HOME=/usr/local/rustup \
@@ -28,8 +28,8 @@ RUN mkdir ${ANDROID_HOME} && \
     chown -R root:root /opt
 RUN mkdir -p ~/.android && touch ~/.android/repositories.cfg
 RUN yes | ${ANDROID_HOME}/tools/bin/sdkmanager "platform-tools" | grep -v = || true
-RUN yes | ${ANDROID_HOME}/tools/bin/sdkmanager "platforms;android-31" | grep -v = || true
-RUN yes | ${ANDROID_HOME}/tools/bin/sdkmanager "build-tools;31.0.0"  | grep -v = || true
+RUN yes | ${ANDROID_HOME}/tools/bin/sdkmanager "platforms;android-36" | grep -v = || true
+RUN yes | ${ANDROID_HOME}/tools/bin/sdkmanager "build-tools;36.0.0-rc5"  | grep -v = || true
 RUN ${ANDROID_HOME}/tools/bin/sdkmanager --update | grep -v = || true
 
 # Install Android NDK
@@ -52,7 +52,7 @@ RUN cargo install --path /root/cargo-apk
 RUN rm -rf /root/cargo-apk
 
 # Add build-tools to PATH, for apksigner
-ENV PATH="/opt/android-sdk-linux/build-tools/31.0.0/:${PATH}"
+ENV PATH="/opt/android-sdk-linux/build-tools/36.0.0-rc5/:${PATH}"
 
 # Make directory for user code
 RUN mkdir /root/src

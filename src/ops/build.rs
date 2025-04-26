@@ -104,7 +104,7 @@ fn build_apks(
             .sdk_path
             .join("build-tools")
             .join(&config.build_tools_version);
-        let aapt_path = build_tools_path.join("aapt");
+        let aapt_path = build_tools_path.join("aapt2");
         let d8_path = build_tools_path.join("d8");
         let zipalign_path = build_tools_path.join("zipalign");
 
@@ -192,33 +192,52 @@ fn build_apks(
         "##
         );
 
-        let mut aapt_package_cmd = ProcessBuilder::new(&aapt_path);
-        aapt_package_cmd
-            .arg("package")
-            .arg("-F")
+        let mut aapt_compile_cmd = ProcessBuilder::new(&aapt_path);
+        aapt_compile_cmd
+            .arg("compile")
+            .arg("-o")
+            .arg("build/res.zip")
+            .arg("--dir")
+            .arg("res");
+        aapt_compile_cmd.cwd(&target_directory).exec()?;
+
+        if let Some(res_path) = &target_config.res_path {
+            let mut aapt_compile_cmd = ProcessBuilder::new(&aapt_path);
+            aapt_compile_cmd
+                .arg("compile")
+                .arg("-o")
+                .arg("build/res2.zip")
+                .arg("--dir")
+                .arg(res_path);
+            aapt_compile_cmd.cwd(&target_directory).exec()?;
+        }
+
+        let mut aapt_link_cmd = ProcessBuilder::new(&aapt_path);
+        aapt_link_cmd
+            .arg("link")
+            .arg("-o")
             .arg(&unaligned_apk_name)
-            .arg("-m")
-            .arg("-J")
-            .arg("build/gen")
-            .arg("-M")
-            .arg("AndroidManifest.xml")
-            .arg("-S")
-            .arg("res")
             .arg("-I")
-            .arg(&config.android_jar_path);
+            .arg(&config.android_jar_path)
+            .arg("--manifest")
+            .arg("AndroidManifest.xml")
+            .arg("-R")
+            .arg("build/res.zip")
+            .arg("--java")
+            .arg("build/gen");
 
         if let Some(res_path) = target_config.res_path {
-            aapt_package_cmd.arg("-S").arg(res_path);
+            aapt_link_cmd.arg("-R").arg("build/res2.zip");
         }
 
         // Link assets
         if let Some(assets_path) = &target_config.assets_path {
-            aapt_package_cmd.arg("-A").arg(assets_path);
+            aapt_link_cmd.arg("-A").arg(assets_path);
         }
 
-        aapt_package_cmd.cwd(&target_directory).exec()?;
+        aapt_link_cmd.cwd(&target_directory).exec()?;
 
-        let mut classpath = config.android_jar_path.to_str().unwrap().to_string();
+        let mut classpath = String::new();
         for (comptime_jar, _) in &java_files.comptime_jar_files {
             classpath.push_str(":");
             classpath.push_str(comptime_jar.to_str().unwrap());
@@ -231,17 +250,15 @@ fn build_apks(
         };
         let javac_path = find_java_executable(javac_filename)?;
 
-        let rt_jar_path = find_rt_jar()?;
-
         let mut java_cmd = ProcessBuilder::new(javac_path);
         java_cmd
             .arg("-source")
-            .arg("1.7")
+            .arg("1.8")
             .arg("-target")
-            .arg("1.7")
+            .arg("1.8")
             .arg("-Xlint:deprecation")
             .arg("-bootclasspath")
-            .arg(rt_jar_path)
+            .arg(&config.android_jar_path)
             .arg("-classpath")
             .arg(&classpath)
             .arg("-d")
@@ -272,8 +289,8 @@ fn build_apks(
 
         d8_cmd.cwd(&target_directory).exec()?;
 
-        ProcessBuilder::new(&aapt_path)
-            .arg("add")
+        ProcessBuilder::new("zip")
+            .arg("-u")
             .arg(&unaligned_apk_name)
             .arg("classes.dex")
             .cwd(&target_directory)
@@ -295,8 +312,8 @@ fn build_apks(
             fs::copy(&shared_library.path, target_shared_object_path)?;
 
             // Add to the APK
-            ProcessBuilder::new(&aapt_path)
-                .arg("add")
+            ProcessBuilder::new("zip")
+                .arg("-u")
                 .arg(&unaligned_apk_name)
                 .arg(so_path)
                 .cwd(&target_directory)
@@ -419,34 +436,6 @@ fn find_java_executable(name: &str) -> CargoResult<PathBuf> {
         })
 }
 
-fn find_rt_jar() -> CargoResult<String> {
-    let java_filename = if cfg!(target_os = "windows") {
-        "java.exe"
-    } else {
-        "java"
-    };
-    let java_path = find_java_executable(java_filename)?;
-
-    let mut res = None;
-    let mut cmd = ProcessBuilder::new(&java_path)
-        .arg("-verbose")
-        .exec_with_streaming(
-            &mut |stdout: &str| {
-                if stdout.contains("Opened") && stdout.contains("rt.jar") {
-                    res = Some(stdout[8..stdout.len() - 1].to_string());
-                }
-
-                Ok(())
-            },
-            &mut |_| Ok(()),
-            false,
-        );
-
-    if res.is_none() {
-        panic!("rt.jar cant be found, probably JRE is not installed");
-    }
-    Ok(res.unwrap())
-}
 fn build_manifest(
     path: &Path,
     config: &AndroidConfig,
@@ -509,7 +498,7 @@ fn build_manifest(
             )
         })
         .collect::<Vec<String>>()
-        .join(", ");
+        .join("");
 
     let uses_permissions = target_config
         .permissions
@@ -525,21 +514,27 @@ fn build_manifest(
             )
         })
         .collect::<Vec<String>>()
-        .join(", ");
+        .join("");
 
     // <service android:name="" android:enabled="true"></service>
 
-    let services = java_files
-        .java_services
-        .iter()
-        .map(|service| {
-            format!(
-                "\n\t<service android:name=\"{}\" android:enabled=\"{}\"></service>",
-                service, true
+    let services =
+        target_config
+            .services
+            .iter()
+            .map(|s| {
+                format!(
+                "\n\t<service android:name=\"{}\" {fg_service} android:exported=\"{}\"></service>",
+                s.name,
+                s.exported,
+                fg_service = s.foreground_service_type.clone().map_or(String::new(), |v| format!(
+                    r#"android:foregroundServiceType="{}""#,
+                    v
+                )),
             )
-        })
-        .collect::<Vec<String>>()
-        .join(", ");
+            })
+            .collect::<Vec<String>>()
+            .join("");
 
     // Write final AndroidManifest
     writeln!(
