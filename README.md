@@ -102,6 +102,21 @@ max_sdk_version = 18
 
 [[package.metadata.android.permission]]
 name = "android.permission.CAMERA"
+
+# An example of using a foreground service.
+# You must specify the relevant permissions required.
+[[package.metadata.android.permission]]
+name = "android.permission.FOREGROUND_SERVICE"
+[[package.metadata.android.permission]]
+name = "android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING"
+
+# Adds a service element in the manifest.
+[[package.metadata.android.service]]
+# Name of the Java file. Make sure it's included with quad.toml too.
+name = ".ForegroundService"
+# Optional flag but required for foreground services.
+foreground_service_type = "remoteMessaging"
+exported = false
 ```
 
 # Environment Variables
