@@ -1,7 +1,7 @@
 FROM archlinux
 
 RUN pacman -Syu --noconfirm
-RUN pacman -S --noconfirm jdk17-openjdk unzip wget cmake rustup openssl pkgconf
+RUN pacman -S --noconfirm jdk17-openjdk unzip wget cmake rustup openssl pkgconf gcc zip
 
 # github override HOME, so here we are
 ENV RUSTUP_HOME=/usr/local/rustup \
@@ -22,14 +22,17 @@ ENV ANDROID_HOME /opt/android-sdk-linux
 ENV JAVA_HOME /usr/lib/jvm/default
 RUN mkdir ${ANDROID_HOME} && \
     cd ${ANDROID_HOME} && \
-    wget -q https://dl.google.com/android/repository/sdk-tools-linux-4333796.zip && \
-    unzip -q sdk-tools-linux-4333796.zip && \
-    rm sdk-tools-linux-4333796.zip && \
+    wget -q https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip && \
+    unzip -q commandlinetools-linux-13114758_latest.zip && \
+    rm commandlinetools-linux-13114758_latest.zip && \
+    mv cmdline-tools latest && \
+    mkdir cmdline-tools/ && \
+    mv latest cmdline-tools/ && \
     chown -R root:root /opt
 RUN mkdir -p ~/.android && touch ~/.android/repositories.cfg
-RUN yes | ${ANDROID_HOME}/tools/bin/sdkmanager "platform-tools" | grep -v = || true
-RUN yes | ${ANDROID_HOME}/tools/bin/sdkmanager "platforms;android-36" | grep -v = || true
-RUN yes | ${ANDROID_HOME}/tools/bin/sdkmanager "build-tools;36.0.0-rc5"  | grep -v = || true
+RUN yes | ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager "platform-tools" | grep -v = || true
+RUN yes | ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager "platforms;android-36" | grep -v = || true
+RUN yes | ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager "build-tools;36.0.0-rc5"  | grep -v = || true
 RUN ${ANDROID_HOME}/tools/bin/sdkmanager --update | grep -v = || true
 
 # Install Android NDK
@@ -41,9 +44,6 @@ ENV NDK_HOME /usr/local/android-ndk-r25
 
 # Copy contents to container. Should only use this on a clean directory
 COPY . /root/cargo-apk
-
-# This should be on top, but I am saving some time rebuilding the container. Sorry!
-RUN pacman -S --noconfirm gcc
 
 # Install binary
 RUN cargo install --path /root/cargo-apk
