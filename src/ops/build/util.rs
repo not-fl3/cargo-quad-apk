@@ -163,12 +163,21 @@ pub fn find_readelf(
 }
 
 // Returns dir to libunwind.a for the correct architecture
-// e.g. ...llvm/prebuilt/linux-x86_64/lib64/clang/14.0.6/lib/linux/i386
+// e.g. ...llvm/prebuilt/linux-x86_64/lib/clang/21/lib/linux/i386
 pub fn find_libunwind_dir(
     config: &AndroidConfig,
     build_target: AndroidBuildTarget,
 ) -> CargoResult<PathBuf> {
-    let libunwind_dir = llvm_toolchain_root(config).join("lib64").join("clang");
+    let llvm_root = llvm_toolchain_root(config);
+
+    // NDK r29 uses 'lib' instead of 'lib64'
+    let lib_dir = if llvm_root.join("lib64").join("clang").exists() {
+        "lib64"
+    } else {
+        "lib"
+    };
+
+    let libunwind_dir = llvm_root.join(lib_dir).join("clang");
     let clang_ver = libunwind_dir
         .read_dir()?
         .next()
