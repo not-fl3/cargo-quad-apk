@@ -6,6 +6,13 @@ struct QuadSurfaceInject {
 }
 
 #[derive(Debug, Default)]
+struct ResizingLayoutInject {
+    body: String,
+    constructor: String,
+    on_apply_window_insets: String,
+}
+
+#[derive(Debug, Default)]
 struct MainActivityInject {
     body: String,
     on_resume: String,
@@ -18,6 +25,7 @@ struct MainActivityInject {
 struct Inject {
     imports: String,
     quad_surface: QuadSurfaceInject,
+    resizing_layout: ResizingLayoutInject,
     main_activity: MainActivityInject,
 }
 
@@ -27,6 +35,15 @@ impl Inject {
         self.quad_surface
             .on_create_input_connection
             .push_str(&other.quad_surface.on_create_input_connection);
+        self.resizing_layout
+            .body
+            .push_str(&other.resizing_layout.body);
+        self.resizing_layout
+            .constructor
+            .push_str(&other.resizing_layout.constructor);
+        self.resizing_layout
+            .on_apply_window_insets
+            .push_str(&other.resizing_layout.on_apply_window_insets);
         self.main_activity.body.push_str(&other.main_activity.body);
         self.main_activity
             .on_resume
@@ -61,6 +78,24 @@ fn parse_inject_template(file: &str) -> Inject {
             assert!(target.is_none());
 
             target = Some(&mut res.quad_surface.on_create_input_connection);
+            continue;
+        }
+        if line.starts_with("//%") && line.contains("RESIZING_LAYOUT_BODY") {
+            assert!(target.is_none());
+
+            target = Some(&mut res.resizing_layout.body);
+            continue;
+        }
+        if line.starts_with("//%") && line.contains("RESIZING_LAYOUT_CONSTRUCTOR") {
+            assert!(target.is_none());
+
+            target = Some(&mut res.resizing_layout.constructor);
+            continue;
+        }
+        if line.starts_with("//%") && line.contains("RESIZING_LAYOUT_ON_APPLY_WINDOW_INSETS") {
+            assert!(target.is_none());
+
+            target = Some(&mut res.resizing_layout.on_apply_window_insets);
             continue;
         }
         if line.starts_with("//%") && line.contains("MAIN_ACTIVITY_BODY") {
@@ -166,11 +201,18 @@ pub fn preprocess_main_activity(
     }
 
     let q = &inject.quad_surface;
+    let r = &inject.resizing_layout;
     let m = &inject.main_activity;
     let res = res.replace("//% IMPORTS", &inject.imports);
     let res = res.replace(
         "//% QUAD_SURFACE_ON_CREATE_INPUT_CONNECTION",
         &q.on_create_input_connection,
+    );
+    let res = res.replace("//% RESIZING_LAYOUT_BODY", &r.body);
+    let res = res.replace("//% RESIZING_LAYOUT_CONSTRUCTOR", &r.constructor);
+    let res = res.replace(
+        "//% RESIZING_LAYOUT_ON_APPLY_WINDOW_INSETS",
+        &r.on_apply_window_insets,
     );
     let res = res.replace("//% MAIN_ACTIVITY_BODY", &m.body);
     let res = res.replace("//% MAIN_ACTIVITY_ON_RESUME", &m.on_resume);
